@@ -5,6 +5,11 @@ on:
   push:
     branches: [ main ]
 
+# 新推送自动取消仍在跑的旧编译，避免重复占用 runner
+concurrency:
+  group: build-hc5962
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -41,12 +46,22 @@ jobs:
           ./scripts/feeds install -a
           ./scripts/feeds install -a -f -p qmodem
 
+      - name: Apply default files (Chinese UI, timezone, hostname)
+        run: |
+          cd immortalwrt
+          mkdir -p files
+          cp -r "$GITHUB_WORKSPACE/files/." files/
+          chmod +x files/etc/uci-defaults/*
+          find files -type f | sort
+
       - name: Load HC5962 config
         run: |
           cd immortalwrt
           cp "$GITHUB_WORKSPACE/config/hc5962.seed" .config
           make defconfig
           grep -E "CONFIG_PACKAGE_(qmodem|luci-app-qmodem-next|luci-app-oaf|appfilter|kmod-oaf)=" .config
+          echo "--- 中文语言包检查 ---"
+          grep -E "CONFIG_LUCI_LANG_zh_Hans|luci-i18n.*zh-cn" .config | head -20
 
       - name: Download packages
         run: |
