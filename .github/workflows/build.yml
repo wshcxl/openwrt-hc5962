@@ -1,0 +1,96 @@
+name: Build ImmortalWrt for HiWiFi HC5962
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune -af || true
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Clone ImmortalWrt 24.10
+        run: |
+          git clone --depth 1 -b openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git immortalwrt
+
+      - name: Add QModem feed and OpenAppFilter package
+        run: |
+          cd immortalwrt
+          echo "src-git qmodem https://github.com/wshcxl/QModem.git;main" >> feeds.conf.default
+          git clone --depth 1 https://github.com/wshcxl/Open-App.git package/OpenAppFilter
+          cat feeds.conf.default | tail -3
+
+      - name: Install feeds
+        run: |
+          cd immortalwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          ./scripts/feeds install -a -f -p qmodem
+
+      - name: Load HC5962 config
+        run: |
+          cd immortalwrt
+          cp "$GITHUB_WORKSPACE/config/hc5962.seed" .config
+          make defconfig
+          grep -E "CONFIG_PACKAGE_(qmodem|luci-app-qmodem-next|luci-app-oaf|appfilter|kmod-oaf)=" .config
+
+      - name: Download packages
+        run: |
+          cd immortalwrt
+          make download -j"$(nproc)"
+
+      - name: Compile firmware
+        run: |
+          cd immortalwrt
+          make -j"$(nproc)" || make -j1 V=s
+          echo "=== BUILD OK ==="
+
+      - name: Show firmware files
+        run: |
+          cd immortalwrt/bin/targets/ramips/mt7621
+          ls -lh *.bin* sha256sums 2>/dev/null || true
+          cat sha256sums 2>/dev/null || true
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-hc5962-firmware
+          path: |
+            immortalwrt/bin/targets/ramips/mt7621/*.bin
+            immortalwrt/bin/targets/ramips/mt7621/*.manifest
+            immortalwrt/bin/targets/ramips/mt7621/sha256sums
+          if-no-files-found: error
+
+      - name: Release firmware
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: hc5962-${{ github.run_number }}
+          name: ImmortalWrt 24.10 HC5962 build ${{ github.run_number }}
+          body: |
+            ImmortalWrt 24.10 (ramips/mt7621) for HiWiFi HC5962
+
+            Bundled apps:
+            - QModem (qmodem + luci-app-qmodem-next) - cellular modem dial-up
+            - OpenAppFilter (luci-app-oaf) - app filter / parental control
+
+            Flash: use *-sysupgrade.bin via LuCI/CLI sysupgrade (from OpenWrt),
+            or *-factory.bin from stock firmware / breed.
+          files: |
+            immortalwrt/bin/targets/ramips/mt7621/*.bin
+            immortalwrt/bin/targets/ramips/mt7621/sha256sums
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
