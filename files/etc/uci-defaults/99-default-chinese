@@ -1,0 +1,14 @@
+#!/bin/sh
+# 首次启动时生效的默认设置: 中文界面 / 上海时区 / argon 主题 / 主机名
+uci -q batch <<-EOF
+	set luci.main.lang='zh_Hans'
+	set luci.main.mediaurlbase='/luci-static/argon'
+	commit luci
+
+	set system.@system[0].hostname='HC5962'
+	set system.@system[0].zonename='Asia/Shanghai'
+	set system.@system[0].timezone='CST-8'
+	commit system
+EOF
+
+exit 0
