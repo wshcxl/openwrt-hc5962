@@ -22,15 +22,15 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
           sudo docker image prune -af || true
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
+          sudo rm -rf "$AGENT_TOOLSDIR" || true
           df -h /
 
       - name: Checkout build repo
         uses: actions/checkout@v4
 
-      - name: Clone ImmortalWrt 24.10
+      - name: Clone ImmortalWrt 25.12 (latest stable, kernel 6.12)
         run: |
-          git clone --depth 1 -b openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git immortalwrt
+          git clone --depth 1 -b openwrt-25.12 https://github.com/immortalwrt/immortalwrt.git immortalwrt
 
       - name: Add QModem feed and OpenAppFilter package
         run: |
@@ -94,9 +94,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: hc5962-${{ github.run_number }}
-          name: ImmortalWrt 24.10 HC5962 build ${{ github.run_number }}
+          name: ImmortalWrt 25.12 HC5962 build ${{ github.run_number }}
           body: |
-            ImmortalWrt 24.10 (ramips/mt7621) for HiWiFi HC5962
+            ImmortalWrt 25.12 (ramips/mt7621, kernel 6.12) for HiWiFi HC5962 — latest stable
 
             Bundled apps:
             - QModem (qmodem + luci-app-qmodem-next) - cellular modem dial-up
